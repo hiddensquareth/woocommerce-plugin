@@ -64,16 +64,14 @@ class Geto_Client extends WC_Payment_Gateway {
 	 * @param string $message
 	 */
 	private function log_message($message) {
-		if ('yes' === $this->debug) {
-            $message = '[GETO LOG] ' . $message;
-			if (empty($this->logger)) {
-				$this->logger = wc_get_logger();
-			}
-			$this->logger->debug($message, array('source' => 'geto-payment'));
+        $message = '[GETO LOG] ' . $message;
+        if (empty($this->logger)) {
+            $this->logger = wc_get_logger();
+        }
+        $this->logger->debug($message, array('source' => 'geto-payment'));
 
-             // Also output to terminal
-            error_log($message); // <- This shows up in terminal with php -S
-		}
+         // Also output to terminal
+        error_log($message); // <- This shows up in terminal with php -S
 	}
     
     /**
@@ -101,9 +99,23 @@ class Geto_Client extends WC_Payment_Gateway {
 
         $result = parent::process_admin_options();
 
+        $v = $this->validate_field_required('title', 'Title');
+        $v = $this->validate_field_required('description', 'Description') && $v;
+        $v = $this->validate_field_required('currency', 'Currency') && $v;
+        $v = $this->validate_field_required('account_key', 'Account Key') && $v;
+        $v = $this->validate_field_required('api_key', 'API Key') && $v;
+        $v = $this->validate_field_required('webhook_secret', 'Webhook Secret') && $v;
+        $v = $this->validate_field_required('webhook_url', 'Webhook URL') && $v;
+
+        if (!$v) {
+            return false;
+        }
+
         foreach ( $this->settings as $setting_key => $value ) {
 			$this->$setting_key = $value;
 		}
+
+        $api_key = $this->get_option('api_key');
 
         // After saving settings, register webhook if enabled
         if ('yes' === $this->get_option('enabled')) {
@@ -114,6 +126,15 @@ class Geto_Client extends WC_Payment_Gateway {
         return $result;
 	}
 
+    private function validate_field_required($field, $field_desc) {
+        $value = $this->get_option($field);
+        if (empty($value)) {
+            WC_Admin_Settings::add_error("{$field_desc} is required.");
+            return false;
+        }
+        return true;
+    }
+
 	/**
 	 * Administration fields for specific Gateway
 	 */
@@ -123,6 +144,13 @@ class Geto_Client extends WC_Payment_Gateway {
 				'title'		=> __( 'Enable / Disable', 'geto-payment-gateway' ),
 				'label'		=> __( 'Enable this payment gateway', 'geto-payment-gateway' ),
 				'type'		=> 'checkbox',
+				'default'	=> 'no',
+			),
+            'test_mode' => array(
+				'title'		=> __( 'GETO Test Mode', 'geto-payment-gateway' ),
+				'label'		=> __( 'Enable Test Mode', 'geto-payment-gateway' ),
+				'type'		=> 'checkbox',
+				'description' => __( 'This is the test mode of gateway.', 'geto-payment-gateway' ),
 				'default'	=> 'no',
 			),
 			'title' => array(
@@ -150,33 +178,17 @@ class Geto_Client extends WC_Payment_Gateway {
 				'type'		=> 'text',
 				'desc_tip'	=> __( 'Account Key from GETO Account', 'geto-payment-gateway' ),
 			),
-			'account_key_test' => array(
-				'title'		=> __( 'Account Key Test Mode', 'geto-payment-gateway' ),
-				'type'		=> 'text',
-				'desc_tip'	=> __( 'Account Key from GETO Test Account', 'geto-payment-gateway' ),
-			),
             'api_key' => array(
 				'title'		=> __( 'API Key', 'geto-payment-gateway' ),
 				'type'		=> 'text',
 				'desc_tip'	=> __( 'API Key from GETO Account', 'geto-payment-gateway' ),
-			),
-			'api_key_test' => array(
-				'title'		=> __( 'API Key Test Mode', 'geto-payment-gateway' ),
-				'type'		=> 'text',
-				'desc_tip'	=> __( 'API Key from GETO Test Account', 'geto-payment-gateway' ),
-			),
-			'test_mode' => array(
-				'title'		=> __( 'GETO Test Mode', 'geto-payment-gateway' ),
-				'label'		=> __( 'Enable Test Mode', 'geto-payment-gateway' ),
-				'type'		=> 'checkbox',
-				'description' => __( 'This is the test mode of gateway.', 'geto-payment-gateway' ),
-				'default'	=> 'no',
 			),
             'webhook_secret' => array(
                 'title'     => __( 'Webhook Secret', 'geto-payment-gateway' ),
                 'type'      => 'text',
                 'desc_tip'  => __( 'Secret key for verifying webhook signatures. Keep this secret!', 'geto-payment-gateway' ),
                 'description' => __( 'Generate a random string and enter it here. This will be used to verify webhook signatures.', 'geto-payment-gateway' ),
+                'default' => wp_generate_uuid4() 
             ),
             'webhook_url' => array(
                 'title'     => __( 'Webhook URL', 'geto-payment-gateway' ),
@@ -194,14 +206,7 @@ class Geto_Client extends WC_Payment_Gateway {
                     'readonly' => 'readonly',
                     'rows'     => 5
                 ]
-            ],
-            'debug' => array(
-                'title'     => __( 'Debug Log', 'geto-payment-gateway' ),
-                'type'      => 'checkbox',
-                'label'     => __( 'Enable logging', 'geto-payment-gateway' ),
-                'default'   => 'no',
-                'description' => __( 'Log GETO API interactions inside WooCommerce logs.', 'geto-payment-gateway' ),
-            )
+            ]
 		);		
 	}
 	
@@ -211,24 +216,22 @@ class Geto_Client extends WC_Payment_Gateway {
 
 		$customer_order = new WC_Order( $order_id );
 		
-		$is_test_mode = ( $this->test_mode == "yes" ) ? 'TRUE' : 'FALSE';
+		$is_test_mode = ($this->test_mode == "yes");
 
-        if ("TRUE" == $is_test_mode) {
+        if ($is_test_mode) {
             $base_url = "https://test-api.geto.app";
-            $api_key = $this->api_key_test;
-            $account_key = $this->account_key_test;
         } else {
             $base_url = "https://api.geto.app";
-            $api_key = $this->api_key;
-            $account_key = $this->account_key;
         }
+        $api_key = $this->api_key;
+        $account_key = $this->account_key;
 
 		// Log payment attempt
 		$this->log_message('Processing payment for order ' . $order_id);
 
 		// Prepare payment payload with sanitized data
 		$payload = array(
-            'amount' => $customer_order->get_total(),
+            'amount' => $customer_order->get_total() * 100,
             'currency' => sanitize_text_field($this->currency),
             'accountKey' => sanitize_text_field($account_key),
             'paymentDescription' => sanitize_text_field($this->get_payment_description($customer_order)),
@@ -241,7 +244,8 @@ class Geto_Client extends WC_Payment_Gateway {
             'merchantRef'=> sanitize_text_field($customer_order->get_order_number()),
             'returnUrl'=> esc_url_raw($customer_order->get_checkout_order_received_url()),
             'metadata'=> array(
-                'ipAddress' => sanitize_text_field($_SERVER['REMOTE_ADDR'])
+                'ipAddress' => sanitize_text_field($_SERVER['REMOTE_ADDR']),
+                'WooCommerceGetoPluginVersion' => GETO_PAYMENT_PLUGIN_VERSION
             )
 		);
 
@@ -486,26 +490,17 @@ class Geto_Client extends WC_Payment_Gateway {
             return;
         }
 
-        $webhook_registration_status = json_decode($this->webhook_registration_status, true);
-
-        // Don't register if webhook_url and webhook_secret are not changed
-        if (is_array($webhook_registration_status) && $webhook_registration_status['url'] == $this->webhook_url && $webhook_registration_status['secret'] == $this->webhook_secret) {
-            $this->log_message('Skipped webhook registration due to unchanged webhook_url and webhook_secret');
-            return;
-        }
-
         // Get API credentials based on mode
         $is_test_mode = ($this->test_mode == "yes");
         
         if ($is_test_mode) {
             $base_url = "https://test-api.geto.app";
-            $api_key = $this->api_key_test;
-            $account_key = $this->account_key_test;
         } else {
             $base_url = "https://api.geto.app";
-            $api_key = $this->api_key;
-            $account_key = $this->account_key;
         }
+
+        $api_key = $this->api_key;
+        $account_key = $this->account_key;
 
         // Skip if credentials are missing
         if (empty($api_key) || empty($account_key)) {
@@ -561,6 +556,8 @@ class Geto_Client extends WC_Payment_Gateway {
 
         } catch (Exception $e) {
             $this->log_message('Exception while registering webhook: ' . $e->getMessage());
+            $this->settings['webhook_registration_status'] = json_encode(array('message' => $e->getMessage()));
+            update_option( $this->get_option_key(), $this->settings );
         }
     }
 
