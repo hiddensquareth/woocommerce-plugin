@@ -6,7 +6,7 @@
  *
  * @class    Geto_Client
  * @package  WooCommerce/Classes/Payment
- * @version  1.0.0
+ * @version  1.0.
  */
 
 defined('ABSPATH') || exit;
@@ -245,7 +245,7 @@ class Geto_Client extends WC_Payment_Gateway {
             'returnUrl'=> esc_url_raw($customer_order->get_checkout_order_received_url()),
             'metadata'=> array(
                 'ipAddress' => sanitize_text_field($_SERVER['REMOTE_ADDR']),
-                'WooCommerceGetoPluginVersion' => GETO_PAYMENT_PLUGIN_VERSION
+                'WooCommerceGetoPluginVersion' => GETO_PAYMENT_VERSION
             )
 		);
 

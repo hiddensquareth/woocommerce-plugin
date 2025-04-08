@@ -1,8 +1,8 @@
 <?php
 /*
-Plugin Name: WooCommerce GETO Gateway
+Plugin Name: GETO Payment Gateway
 Plugin URI: https://geto.app
-Description: Extends WooCommerce with a GETO payment gateway.
+Description: Simplify payment process with GETO
 Version: 1.0
 Author: GETO
 Author URI: https://geto.app
@@ -22,11 +22,10 @@ if (!defined('ABSPATH')) {
 }
 
 // Define plugin constants
-define('GETO_PAYMENT_VERSION', '1.0.0');
+define('GETO_PAYMENT_VERSION', '1.0');
 define('GETO_PAYMENT_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GETO_PAYMENT_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GETO_PAYMENT_TEXT_DOMAIN', 'geto-payment-gateway');
-define('GETO_PAYMENT_PLUGIN_VERSION', '1.0');
 
 // Check if WooCommerce is active
 function geto_payment_woocommerce_missing_notice() {

@@ -9,7 +9,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2025-04-07T03:54:04+00:00\n"
+"POT-Creation-Date: 2025-04-08T20:20:27+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.11.0\n"
 "X-Domain: geto-payment-gateway\n"
@@ -34,213 +34,185 @@ msgstr ""
 #: geto-payment-gateway.php
 #: geto-client.php:22
 #: geto-client.php:28
-#: geto-client.php:117
+#: geto-client.php:160
 msgid "GETO"
+msgstr ""
+
+#: geto-callback.php:13
+msgid "Payment completed via GETO return callback"
 msgstr ""
 
 #: geto-client.php:25
 msgid "GETO Payment Gateway Plug-in for WooCommerce"
 msgstr ""
 
-#: geto-client.php:82
+#: geto-client.php:83
 msgid "Security check failed. Please refresh the page and try again."
 msgstr ""
 
-#: geto-client.php:108
+#: geto-client.php:144
 msgid "Enable / Disable"
 msgstr ""
 
-#: geto-client.php:109
+#: geto-client.php:145
 msgid "Enable this payment gateway"
 msgstr ""
 
-#: geto-client.php:114
-msgid "Title"
-msgstr ""
-
-#: geto-client.php:116
-#: geto-client.php:122
-msgid "Payment title of checkout process."
-msgstr ""
-
-#: geto-client.php:120
-msgid "Description"
-msgstr ""
-
-#: geto-client.php:123
-msgid "Proceed with GETO."
-msgstr ""
-
-#: geto-client.php:127
-msgid "Currency Code"
-msgstr ""
-
-#: geto-client.php:129
-msgid "Choose the currency for this gateway."
-msgstr ""
-
-#: geto-client.php:134
-msgid "Account Key"
-msgstr ""
-
-#: geto-client.php:136
-msgid "Account Key from GETO Account"
-msgstr ""
-
-#: geto-client.php:139
-msgid "Account Key Test Mode"
-msgstr ""
-
-#: geto-client.php:141
-msgid "Account Key from GETO Test Account"
-msgstr ""
-
-#: geto-client.php:144
-msgid "API Key"
-msgstr ""
-
-#: geto-client.php:146
-msgid "API Key from GETO Account"
-msgstr ""
-
-#: geto-client.php:149
-msgid "API Key Test Mode"
-msgstr ""
-
-#: geto-client.php:151
-msgid "API Key from GETO Test Account"
-msgstr ""
-
-#: geto-client.php:154
-msgid "GETO API Version"
-msgstr ""
-
-#: geto-client.php:159
+#: geto-client.php:150
 msgid "GETO Test Mode"
 msgstr ""
 
-#: geto-client.php:160
+#: geto-client.php:151
 msgid "Enable Test Mode"
 msgstr ""
 
-#: geto-client.php:162
+#: geto-client.php:153
 msgid "This is the test mode of gateway."
 msgstr ""
 
+#: geto-client.php:157
+msgid "Title"
+msgstr ""
+
+#: geto-client.php:159
+#: geto-client.php:165
+msgid "Payment title of checkout process."
+msgstr ""
+
+#: geto-client.php:163
+msgid "Description"
+msgstr ""
+
 #: geto-client.php:166
-msgid "Webhook Secret"
+msgid "Proceed with GETO."
 msgstr ""
 
-#: geto-client.php:168
-msgid "Secret key for verifying webhook signatures. Keep this secret!"
-msgstr ""
-
-#: geto-client.php:169
-msgid "Generate a random string and enter it here. This will be used to verify webhook signatures."
+#: geto-client.php:170
+msgid "Currency Code"
 msgstr ""
 
 #: geto-client.php:172
-msgid "Webhook URL"
+msgid "Choose the currency for this gateway."
 msgstr ""
 
-#: geto-client.php:174
-msgid "URL to provide to GETO for webhook notifications."
+#: geto-client.php:177
+msgid "Account Key"
 msgstr ""
 
 #: geto-client.php:179
-msgid "Debug Log"
+msgid "Account Key from GETO Account"
 msgstr ""
 
-#: geto-client.php:181
-msgid "Enable logging"
+#: geto-client.php:182
+msgid "API Key"
 msgstr ""
 
-#: geto-client.php:183
-msgid "Log GETO API interactions inside WooCommerce logs."
+#: geto-client.php:184
+msgid "API Key from GETO Account"
 msgstr ""
 
-#: geto-client.php:238
+#: geto-client.php:187
+msgid "Webhook Secret"
+msgstr ""
+
+#: geto-client.php:189
+msgid "Secret key for verifying webhook signatures. Keep this secret!"
+msgstr ""
+
+#: geto-client.php:190
+msgid "Generate a random string and enter it here. This will be used to verify webhook signatures."
+msgstr ""
+
+#: geto-client.php:194
+msgid "Webhook URL"
+msgstr ""
+
+#: geto-client.php:196
+msgid "URL to provide to GETO for webhook notifications."
+msgstr ""
+
+#: geto-client.php:201
+msgid "Webhook Status"
+msgstr ""
+
+#: geto-client.php:262
 msgid "Authentication with payment gateway failed. Please try again or contact site administrator."
 msgstr ""
 
-#: geto-client.php:261
-#: geto-client.php:381
+#: geto-client.php:284
+#: geto-client.php:444
 msgid "Connection to payment gateway failed: "
 msgstr ""
 
-#: geto-client.php:268
+#: geto-client.php:291
 msgid "Payment gateway returned an error: HTTP "
 msgstr ""
 
-#: geto-client.php:275
+#: geto-client.php:298
 msgid "Empty response from payment gateway."
 msgstr ""
 
-#: geto-client.php:282
+#: geto-client.php:305
 msgid "Invalid response from payment gateway."
 msgstr ""
 
-#: geto-client.php:288
+#: geto-client.php:312
 msgid "Invalid response from payment gateway: missing required data."
 msgstr ""
 
-#: geto-client.php:297
+#: geto-client.php:324
 msgid "GETO Payment initiated. Payment Key: %s"
 msgstr ""
 
-#: geto-client.php:302
+#: geto-client.php:329
 msgid "Awaiting GETO payment"
 msgstr ""
 
-#: geto-client.php:324
+#: geto-client.php:351
 msgid "Payment error:"
 msgstr ""
 
-#: geto-client.php:388
+#: geto-client.php:451
 msgid "Authentication failed: HTTP "
 msgstr ""
 
-#: geto-client.php:395
+#: geto-client.php:458
 msgid "Empty response from payment gateway during authentication."
 msgstr ""
 
-#: geto-client.php:402
+#: geto-client.php:465
 msgid "Invalid response from payment gateway during authentication."
 msgstr ""
 
-#: geto-client.php:408
+#: geto-client.php:471
 msgid "Authentication failed: Token not provided by gateway."
 msgstr ""
 
-#: geto-client.php:577
+#: geto-client.php:648
 msgid "Payment completed via GETO webhook"
 msgstr ""
 
-#: geto-client.php:592
-#: geto-client.php:595
+#: geto-client.php:663
+#: geto-client.php:666
 msgid "Payment pending via GETO webhook"
 msgstr ""
 
-#: geto-client.php:608
-msgid "Payment failed via GETO webhook"
-msgstr ""
-
-#: geto-client.php:613
-msgid "Payment failed reason: %s"
-msgstr ""
-
-#: geto-client.php:635
+#: geto-client.php:679
 msgid "Payment cancelled via GETO webhook"
 msgstr ""
 
-#: geto-client.php:651
-msgid "Received unknown payment status from GETO: %s"
+#: geto-client.php:694
+msgid "Payment failed via GETO webhook"
 msgstr ""
 
-#: geto-payment-gateway.php:34
+#: geto-client.php:699
+msgid "Payment failed reason: %s"
+msgstr ""
+
+#: geto-payment-gateway.php:35
 msgid "GETO Payment Gateway requires WooCommerce to be installed and active. You can download %s here."
 msgstr ""
 
-#: geto-payment-gateway.php:68
+#: geto-payment-gateway.php:72
 msgid "Sorry, but this plugin requires WooCommerce to be installed and active."
 msgstr ""
