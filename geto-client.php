@@ -13,12 +13,12 @@ defined('ABSPATH') || exit;
 
 class Geto_Client extends WC_Payment_Gateway {
 
+	private $logger;
 	function __construct() {
-
 		// global ID
-		$this->id = "geto_payment";
-
-		// Show Title
+		$this->id = 'geto_payment';
+		$this->icon = apply_filters('woocommerce_geto_icon', '');
+		$this->has_fields = true;
 		$this->method_title = __( "GETO", 'geto-payment-gateway' );
 
 		// Show Description
@@ -27,12 +27,7 @@ class Geto_Client extends WC_Payment_Gateway {
 		// vertical tab title
 		$this->title = __( "GETO", 'geto-payment-gateway' );
 
-		$this->icon = null;
-
-		$this->has_fields = true;
-
 		$this->supports = array( 'products' );
-
 		// setting defines
 		$this->init_form_fields();
 
@@ -55,12 +50,13 @@ class Geto_Client extends WC_Payment_Gateway {
         // Register webhook handler
         add_action('woocommerce_api_geto_webhook', array($this, 'webhook_handler'));
 
-        // Register webhook with GETO API after settings are saved
-        add_action('woocommerce_update_options_payment_gateways_' . $this->id, array($this, 'register_webhook'));
-
-		// Initialize logger
-		$this->log = new WC_Logger();
-		} // End __construct()
+        // Register callack handler
+        add_action('template_redirect', array($this, 'callback_handler'));
+        
+        // Initialize logger and log initialization
+        $this->logger = wc_get_logger();
+        $this->log_message('GETO Payment Gateway initialized');
+	} // End __construct()
 
 	/**
 	 * Log message to WooCommerce log if debug is enabled
@@ -68,35 +64,54 @@ class Geto_Client extends WC_Payment_Gateway {
 	 * @param string $message
 	 */
 	private function log_message($message) {
-		if ((defined('WP_DEBUG') && WP_DEBUG) || 'yes' === $this->debug) {
-			$this->log->add('geto_payment', $message);
+		if ('yes' === $this->debug) {
+            $message = '[GETO LOG] ' . $message;
+			if (empty($this->logger)) {
+				$this->logger = wc_get_logger();
+			}
+			$this->logger->debug($message, array('source' => 'geto-payment'));
+
+             // Also output to terminal
+            error_log($message); // <- This shows up in terminal with php -S
 		}
 	}
+    
+    /**
+     * Process admin options and sanitize inputs
+     */
+    public function process_admin_options() {
+        // Check the nonce
+        if (!isset($_POST['_wpnonce']) || !wp_verify_nonce($_POST['_wpnonce'], 'woocommerce-settings')) {
+            wp_die(__('Security check failed. Please refresh the page and try again.', 'geto-payment-gateway'));
+        }
 
-	/**
-	 * Override the process_admin_options function to include nonce verification
-	 */
-	public function process_admin_options() {
-		// Check the nonce
-		if (!isset($_POST['_wpnonce']) || !wp_verify_nonce($_POST['_wpnonce'], 'woocommerce-settings')) {
-			wp_die(__('Security check failed. Please refresh the page and try again.', 'geto-payment-gateway'));
+        // Sanitize all input fields
+        if (isset($_POST[$this->get_field_key('account_key')])) {
+            $_POST[$this->get_field_key('account_key')] = sanitize_text_field($_POST[$this->get_field_key('account_key')]);
+        }
+        if (isset($_POST[$this->get_field_key('account_key_test')])) {
+            $_POST[$this->get_field_key('account_key_test')] = sanitize_text_field($_POST[$this->get_field_key('account_key_test')]);
+        }
+        if (isset($_POST[$this->get_field_key('api_key')])) {
+            $_POST[$this->get_field_key('api_key')] = sanitize_text_field($_POST[$this->get_field_key('api_key')]);
+        }
+        if (isset($_POST[$this->get_field_key('api_key_test')])) {
+            $_POST[$this->get_field_key('api_key_test')] = sanitize_text_field($_POST[$this->get_field_key('api_key_test')]);
+        }
+
+        $result = parent::process_admin_options();
+
+        foreach ( $this->settings as $setting_key => $value ) {
+			$this->$setting_key = $value;
 		}
 
-		// Sanitize all input fields
-		if (isset($_POST[$this->get_field_key('account_key')])) {
-			$_POST[$this->get_field_key('account_key')] = sanitize_text_field($_POST[$this->get_field_key('account_key')]);
-		}
-		if (isset($_POST[$this->get_field_key('account_key_test')])) {
-			$_POST[$this->get_field_key('account_key_test')] = sanitize_text_field($_POST[$this->get_field_key('account_key_test')]);
-		}
-		if (isset($_POST[$this->get_field_key('api_key')])) {
-			$_POST[$this->get_field_key('api_key')] = sanitize_text_field($_POST[$this->get_field_key('api_key')]);
-		}
-		if (isset($_POST[$this->get_field_key('api_key_test')])) {
-			$_POST[$this->get_field_key('api_key_test')] = sanitize_text_field($_POST[$this->get_field_key('api_key_test')]);
-		}
+        // After saving settings, register webhook if enabled
+        if ('yes' === $this->get_option('enabled')) {
+            $this->log_message('Registering webhook after saving settings');
+            $this->register_webhook();
+        }
 
-		return parent::process_admin_options();
+        return $result;
 	}
 
 	/**
@@ -150,11 +165,6 @@ class Geto_Client extends WC_Payment_Gateway {
 				'type'		=> 'text',
 				'desc_tip'	=> __( 'API Key from GETO Test Account', 'geto-payment-gateway' ),
 			),
-            'api_key_version' => array(
-				'title'		=> __( 'GETO API Version', 'geto-payment-gateway' ),
-				'type'		=> 'text',
-				'desc_tip'	=> 'v2',
-			),
 			'test_mode' => array(
 				'title'		=> __( 'GETO Test Mode', 'geto-payment-gateway' ),
 				'label'		=> __( 'Enable Test Mode', 'geto-payment-gateway' ),
@@ -172,9 +182,19 @@ class Geto_Client extends WC_Payment_Gateway {
                 'title'     => __( 'Webhook URL', 'geto-payment-gateway' ),
                 'type'      => 'text',
                 'desc_tip'  => __( 'URL to provide to GETO for webhook notifications.', 'geto-payment-gateway' ),
-                'default'   => home_url( 'wc-api/geto_webhook' ),
-                'custom_attributes' => array('readonly' => 'readonly'),
+                'default'   => home_url( '?wc-api=geto_webhook' ),
+                // 'custom_attributes' => array('readonly' => 'readonly'),
             ),
+            'webhook_registration_status' => [
+                'title'       => __('Webhook Status', 'geto-payment-gateway'),
+                'type'        => 'textarea',
+                'description' => __('The current status of the webhook registration.'),
+                'default'     => '{ "message": "Not Registered" }',
+                'custom_attributes' => [
+                    'readonly' => 'readonly',
+                    'rows'     => 5
+                ]
+            ],
             'debug' => array(
                 'title'     => __( 'Debug Log', 'geto-payment-gateway' ),
                 'type'      => 'checkbox',
@@ -211,7 +231,7 @@ class Geto_Client extends WC_Payment_Gateway {
             'amount' => $customer_order->get_total(),
             'currency' => sanitize_text_field($this->currency),
             'accountKey' => sanitize_text_field($account_key),
-            'paymentDescription' => sanitize_text_field($customer_order->get_order_number()),
+            'paymentDescription' => sanitize_text_field($this->get_payment_description($customer_order)),
             'customer'=> array(
                 'id'=> intval($customer_order->get_user_id()),
                 'email'=> sanitize_email($customer_order->get_billing_email()),
@@ -243,9 +263,8 @@ class Geto_Client extends WC_Payment_Gateway {
 
             // Send this payload to GETO API for processing
             $response = wp_remote_post( "$base_url/v2/payments/init", array(
-                'method'    => 'POST',
                 'headers'   => array(
-                    'Content-Type'  => 'application/json',
+                    'Content-Type' => 'application/json',
                     'Accept'  => 'application/json',
                     'Authorization' => "Bearer $access_token",
                 ),
@@ -282,20 +301,24 @@ class Geto_Client extends WC_Payment_Gateway {
                 throw new Exception(__('Invalid response from payment gateway.', 'geto-payment-gateway'));
             }
 
+            
             // Validate response data
-            if (!isset($data['paymentKey']) || !isset($data['url'])) {
+            if (!isset($data['payment']['paymentKey']) || !isset($data['url'])) {
                 $this->log_message('Missing required fields in API response: ' . wp_json_encode($data));
                 throw new Exception(__('Invalid response from payment gateway: missing required data.', 'geto-payment-gateway'));
             }
 
+            $payment_key = $data['payment']['paymentKey'];
+            $return_url = $data['url'];
+
             // Update order meta with paymentKey for future reference
-            $customer_order->update_meta_data('_geto_payment_key', $data['paymentKey']);
+            $customer_order->update_meta_data('_geto_payment_key',$payment_key);
             $customer_order->save();
 
             // Add order note
             $customer_order->add_order_note(
                 sprintf(__('GETO Payment initiated. Payment Key: %s', 'geto-payment-gateway'), 
-                $data['paymentKey'])
+                $payment_key)
             );
 
             // Mark as pending
@@ -305,12 +328,12 @@ class Geto_Client extends WC_Payment_Gateway {
             $woocommerce->cart->empty_cart();
 
             // Log success
-            $this->log_message('Payment initialization successful. Redirecting to: ' . $data['url']);
+            $this->log_message('Payment initialization successful. Redirecting to: ' . $return_url);
 
             // Return success with redirect URL
             return array(
                 'result'   => 'success',
-                'redirect' => $data['url'],
+                'redirect' => $return_url,
             );
 
         } catch (Exception $e) {
@@ -330,12 +353,48 @@ class Geto_Client extends WC_Payment_Gateway {
         }
 
 	}
+
+    private function get_payment_description($order) {
+        $items = $order->get_items();
+        $item_count = count( $items );
+        
+        if ( $item_count > 0 ) {
+            $first_item = reset( $items );
+            $product = $first_item->get_product();
+            $product_name = $product ? $product->get_name() : '-';
+        
+            if ( $item_count === 1 ) {
+                $message = "$product_name";
+            } else {
+                $message = "$product_name and more...";
+            }
+        } else {
+            $message = "-";
+        }
+        
+        return $message;
+    }
 	
 	// Validate fields
 	public function validate_fields() {
 		return true;
 	}
 
+    /**
+     * Display payment fields on checkout
+     * Display payment fields on checkout
+     */
+    public function payment_fields() {
+        // Show description if set
+        if ($this->description) {
+            echo wpautop(wptexturize($this->description));
+        }
+        
+        // Add payment fields
+        if ($this->supports('default_credit_card_form')) {
+            $this->credit_card_form();
+        }
+    }
 	public function do_ssl_check() {
 		if( $this->enabled == "yes" ) {
 			if( get_option( 'woocommerce_force_ssl_checkout' ) == "no" ) {
@@ -421,6 +480,20 @@ class Geto_Client extends WC_Payment_Gateway {
             return;
         }
 
+        // Don't register if url and secret are not set
+        if (empty($this->webhook_url) || empty($this->webhook_secret)) {
+            $this->log_message('Skipped webhook registration due to missing webhook_url or webhook_secret');
+            return;
+        }
+
+        $webhook_registration_status = json_decode($this->webhook_registration_status, true);
+
+        // Don't register if webhook_url and webhook_secret are not changed
+        if (is_array($webhook_registration_status) && $webhook_registration_status['url'] == $this->webhook_url && $webhook_registration_status['secret'] == $this->webhook_secret) {
+            $this->log_message('Skipped webhook registration due to unchanged webhook_url and webhook_secret');
+            return;
+        }
+
         // Get API credentials based on mode
         $is_test_mode = ($this->test_mode == "yes");
         
@@ -446,15 +519,13 @@ class Geto_Client extends WC_Payment_Gateway {
             
             // Prepare webhook data
             $webhook_data = array(
-                'url' => home_url('wc-api/geto_webhook'),
+                'accountKey' => $account_key,
+                'url' => $this->webhook_url,
                 'secret' => $this->webhook_secret,
-                'events' => array('payment.completed', 'payment.failed', 'payment.pending', 'payment.cancelled'),
-                'active' => true,
-                'description' => 'WooCommerce Integration (' . get_bloginfo('name') . ')'
             );
 
             // Register webhook with GETO API
-            $response = wp_remote_post("$base_url/v2/webhooks", array(
+            $response = wp_remote_post("$base_url/v2/accounts/webhook", array(
                 'method' => 'POST',
                 'headers' => array(
                     'Content-Type' => 'application/json',
@@ -469,6 +540,8 @@ class Geto_Client extends WC_Payment_Gateway {
             // Check for errors
             if (is_wp_error($response)) {
                 $this->log_message('Error registering webhook: ' . $response->get_error_message());
+                $this->settings['webhook_registration_status'] = json_encode(array('message' => $response->get_error_message()));
+                update_option( $this->get_option_key(), $this->settings );
                 return;
             }
 
@@ -478,9 +551,13 @@ class Geto_Client extends WC_Payment_Gateway {
             // Log response
             if ($http_code >= 200 && $http_code < 300) {
                 $this->log_message('Webhook registered successfully');
+                $this->settings['webhook_registration_status'] = $response_body;
             } else {
                 $this->log_message('Failed to register webhook. Response: ' . $response_body);
+                $this->settings['webhook_registration_status'] = $response_body;
             }
+
+            update_option( $this->get_option_key(), $this->settings );
 
         } catch (Exception $e) {
             $this->log_message('Exception while registering webhook: ' . $e->getMessage());
@@ -494,18 +571,20 @@ class Geto_Client extends WC_Payment_Gateway {
      * @param string $signature The signature header from the request
      * @return bool Whether the signature is valid
      */
-    private function verify_webhook_signature($payload, $signature) {
+    private function verify_webhook_signature($payload, $secret) {
         // If no webhook secret is set, skip verification
         if (empty($this->webhook_secret)) {
             $this->log_message('Warning: Webhook secret not configured - skipping signature verification');
             return true;
         }
 
-        // Calculate expected signature
-        $expected_signature = hash_hmac('sha256', $payload, $this->webhook_secret);
+        return $this->webhook_secret == $secret;
 
-        // Compare signatures using hash_equals to prevent timing attacks
-        return hash_equals($expected_signature, $signature);
+        // // Calculate expected signature
+        // $expected_signature = hash_hmac('sha256', $payload, $this->webhook_secret);
+
+        // // Compare signatures using hash_equals to prevent timing attacks
+        // return hash_equals($expected_signature, $signature);
     }
 
     /**
@@ -516,8 +595,8 @@ class Geto_Client extends WC_Payment_Gateway {
     public function webhook_handler() {
         // Verify the request
         $request_body = file_get_contents('php://input');
-        $signature = isset($_SERVER['HTTP_X_GETO_SIGNATURE']) ? $_SERVER['HTTP_X_GETO_SIGNATURE'] : '';
-        
+        $secret = isset($_SERVER['HTTP_X_NOTIFY_SECRET']) ? $_SERVER['HTTP_X_NOTIFY_SECRET'] : '';
+
         if (empty($request_body)) {
             $this->log_message('Invalid webhook: Missing payload');
             status_header(400);
@@ -527,15 +606,10 @@ class Geto_Client extends WC_Payment_Gateway {
         // Log the incoming webhook
         $this->log_message('Webhook received: ' . $request_body);
         
-        // Verify signature if provided
-        if (!empty($signature)) {
-            if (!$this->verify_webhook_signature($request_body, $signature)) {
-                $this->log_message('Invalid webhook: Signature verification failed');
-                status_header(401);
-                exit('Invalid signature');
-            }
-        } else {
-            $this->log_message('Warning: No signature provided with webhook');
+        if (!$this->verify_webhook_signature($request_body, $secret)) {
+            $this->log_message('Invalid webhook: Secret verification failed');
+            status_header(401);
+            exit('Invalid signature');
         }
         
         // Parse the JSON payload
@@ -570,7 +644,7 @@ class Geto_Client extends WC_Payment_Gateway {
         
         // Process based on status
         switch ($data['status']) {
-            case 'completed':
+            case 'complete':
                 // Payment successful
                 if ($order->needs_payment()) {
                     $order->payment_complete($data['paymentKey']);
@@ -585,7 +659,7 @@ class Geto_Client extends WC_Payment_Gateway {
                 echo json_encode(array('success' => true, 'message' => 'Payment completed'));
                 exit;
                 
-            case 'pending':
+            case 'pending_customer':
                 // Payment is pending
                 if ($order->has_status('failed')) {
                     // If the order was previously failed, move it back to pending
@@ -602,7 +676,22 @@ class Geto_Client extends WC_Payment_Gateway {
                 echo json_encode(array('success' => true, 'message' => 'Payment pending'));
                 exit;
                 
-            case 'failed':
+            case 'cancelled':
+                // Payment was cancelled
+                if (!$order->has_status('cancelled')) {
+                    $order->update_status('cancelled', __('Payment cancelled via GETO webhook', 'geto-payment-gateway'));
+                    $this->log_message('Payment cancelled for order #' . $order->get_id());
+                    
+                    // Optional: Handle inventory, increase stock, etc.
+                    // wc_increase_stock_levels($order_id);
+                }
+                
+                // Return success response
+                status_header(200);
+                echo json_encode(array('success' => true, 'message' => 'Payment cancellation recorded'));
+                exit;
+
+            default:
                 // Payment failed
                 if (!$order->has_status('failed')) {
                     $order->update_status('failed', __('Payment failed via GETO webhook', 'geto-payment-gateway'));
@@ -629,33 +718,18 @@ class Geto_Client extends WC_Payment_Gateway {
                 echo json_encode(array('success' => true, 'message' => 'Payment failure recorded'));
                 exit;
                 
-            case 'cancelled':
-                // Payment was cancelled
-                if (!$order->has_status('cancelled')) {
-                    $order->update_status('cancelled', __('Payment cancelled via GETO webhook', 'geto-payment-gateway'));
-                    $this->log_message('Payment cancelled for order #' . $order->get_id());
-                    
-                    // Optional: Handle inventory, increase stock, etc.
-                    // wc_increase_stock_levels($order_id);
-                }
+            // default:
+            //     // Unknown status
+            //     $this->log_message('Received unknown payment status: ' . $data['status'] . ' for order #' . $order->get_id());
+            //     $order->add_order_note(sprintf(
+            //         __('Received unknown payment status from GETO: %s', 'geto-payment-gateway'),
+            //         sanitize_text_field($data['status'])
+            //     ));
                 
-                // Return success response
-                status_header(200);
-                echo json_encode(array('success' => true, 'message' => 'Payment cancellation recorded'));
-                exit;
-                
-            default:
-                // Unknown status
-                $this->log_message('Received unknown payment status: ' . $data['status'] . ' for order #' . $order->get_id());
-                $order->add_order_note(sprintf(
-                    __('Received unknown payment status from GETO: %s', 'geto-payment-gateway'),
-                    sanitize_text_field($data['status'])
-                ));
-                
-                // Return error response
-                status_header(400);
-                echo json_encode(array('success' => false, 'message' => 'Unknown payment status'));
-                exit;
+            //     // Return error response
+            //     status_header(400);
+            //     echo json_encode(array('success' => false, 'message' => 'Unknown payment status'));
+            //     exit;
         }
         
         // This code should never be reached but is here as a fallback
@@ -664,5 +738,57 @@ class Geto_Client extends WC_Payment_Gateway {
         echo json_encode(array('success' => false, 'message' => 'Unexpected error in webhook processing'));
         exit;
     }
+
+    public function callback_handler() {
+        error_log('In callback_handler');
+        $this->log_message('In callback_handler');
+        // Only run on the "order received" (thank you) page
+        if (!is_order_received_page()) {
+            return;
+        }
+    
+        $order_id = absint(get_query_var('order-received'));
+    
+        if (!$order_id) {
+            return;
+        }
+    
+        $order = wc_get_order($order_id);
+    
+        if (!$order || $order->get_payment_method() !== 'geto') {
+            return;
+        }
+    
+        // Skip if already paid
+        if ($order->is_paid()) {
+            return;
+        }
+    
+        // 💡 Optional: retrieve payment key from GET or session
+        $payment_key = isset($_GET['paymentKey']) ? sanitize_text_field($_GET['paymentKey']) : null;
+    
+        if (!$payment_key) {
+            $order->add_order_note('GETO return: missing paymentKey');
+            return;
+        }
+    
+        // 🎯 Verify payment again with your GETO API
+        $response = wp_remote_get('https://your-api-endpoint/check-status?paymentKey=' . $payment_key);
+    
+        if (is_wp_error($response)) {
+            $order->add_order_note('GETO return: API error - ' . $response->get_error_message());
+            return;
+        }
+    
+        $body = json_decode(wp_remote_retrieve_body($response), true);
+    
+        if (!empty($body['status']) && $body['status'] === 'PAID') {
+            $order->payment_complete($payment_key);
+            $order->add_order_note('GETO payment completed via callback (order received page)');
+        } else {
+            $order->add_order_note('GETO return: payment not confirmed (status = ' . ($body['status'] ?? 'unknown') . ')');
+        }
+    }
+    
 
 }

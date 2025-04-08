@@ -47,6 +47,7 @@ function geto_init() {
     }
     
     include_once('geto-client.php');
+    include_once('geto-callback.php');
 
     // Load plugin text domain
     load_plugin_textdomain('geto-payment-gateway', false, dirname(plugin_basename(__FILE__)) . '/languages');
@@ -58,6 +59,8 @@ function geto_init() {
     }
     
     add_filter('woocommerce_payment_gateways', 'woocommerce_add_geto_gateway');
+    add_action('template_redirect', 'callback_handler');
+
 }
 
 // Register activation hook
